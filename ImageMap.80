@@ -1,0 +1,239 @@
+/* 	ImageMap.cmd      version 1.00		*/
+/* REXX routine to handle WWW Imagemap processing under the OS/2 gopher server. */
+
+/* Created by D.L. Meyer;  22 July, 1994 */
+
+/*  To Install: copy this file into your GoServe directory, naming it 'ImageMap.##'  */
+/*	where ## is the TCP/IP port number the server is operating on.  */
+/*		(Should be the same as GoFilter.##.)		*/
+
+
+	/*  Initialize variables  */
+ImageMapVersion '1.00'
+mapConf = 'conf\imagemap.cnf'
+Default = ''
+ServerAdmin = '[The Server Administrator]'
+TestMode = 0
+MapID = 0
+
+	/*  Parse command arguments into variables to use here. */
+Parse arg outfile, Parms, MapName, pathparms
+Parse var Parms iX ',' iY
+
+	/* Link to the external function(s) we need */
+Call RxFuncAdd 'SysFileDelete', 'RexxUtil', 'SysFileDelete'
+call SysFileDelete outfile
+
+	/* Begin the Main process: */
+
+	/* Read the Map List into a stem variable. */
+i = 0
+Text = '%'
+do while (Text \= '')
+  i = i + 1
+  Text = linein(mapConf)
+  parse var Text N ' : ' Map.filename.i
+  parse upper var N Map.name.i
+end
+
+	/* Set 'NumMaps' to the number of maps located.  */
+NumMaps = i - 1
+
+	/* Set MapID to index of the first matching defined MapName; to 0 if no match */
+i = 1
+do while ((i <= NumMaps) & (MapName \= Map.name.i))
+  i = i + 1
+end
+if (i > NumMaps) then MapID = 0
+else MapID = i
+  
+	/* If a valid Map, then process the passed parameters & determine URL to return. */
+if  (MapID > 0) then
+  do 1
+    i = ReadMap(MapID)
+    _URL = GetURLfromMap( iX iY)
+  end
+else _URL = Default
+
+Select
+	/* If a URL is available, and TESTMODE is not on, then redirect client */
+  When ((_URL \= '') & (TestMode == 0)) then 
+    do
+      call lineout outfile, "HTTP/1.0 302 Found"
+      call lineout outfile, 'Location: '_URL
+      call lineout outfile, ""
+    end
+	/* MapID = -1 shouldn't happen; reserved for later use..  */
+	/* 400 Bad Request forces client to report error - no HTML is displayed on client.  */
+  When (MapID = -1) then 
+    do
+      call lineout outfile, "HTTP/1.0 400 Bad Request"
+      call lineout outfile, ""
+    end
+	/* Undefined MapName -- send appropriate Error HTML... */
+  When (MapID = 0) then 
+    do
+      call lineout outfile, "<head><title>REXX Script Processor Output</title></head><body>"
+      call lineout outfile, "<h1>ERROR: Undefined Map</h1>"
+      call lineout outfile, "<hr>MapName=["Mapname"]<br>"
+      call lineout outfile, 'MapID='MapID'<hr>'
+      call lineout outfile, "Click Coordinates:<pre>   X=["iX"]<br>   Y=["iY"]<br><pre>"
+      call lineout outfile, '<hr><address>To define a new map, you must place your <em>'MapName'.MAP</em> '
+      call lineout outfile, 'file onto the server, and send email to 'ServerAdmin' requesting that your map'
+      call lineout outfile, ' be added to the configuration file.  [Your email message should tell of the mapname: "<em>'MapName'</em>" and the location of the <em>'MapName'.MAP</em> file.]</address>'
+      call lineout outfile, '<hr><address>Please report server-related problems to 'ServerAdmin'</address>'
+      call lineout outfile, "</body>"
+    end
+	/* Must have fallen through because of no 'Default' defined in .MAP file, */
+	/*  or TESTMODE is on.  Send debugging info via HTML.*/
+  Otherwise
+    do
+      call lineout outfile, "<head><title>REXX Script Processor Output</title></head><body>"
+      call lineout outfile, "<h1>ImageMap Input</h1>"
+
+      call lineout outfile, "<hr>MapName=["Mapname"]<br>"
+      call lineout outfile, 'MapID='MapID'<hr>'
+      call lineout outfile, "Click Coordinates:<pre>   X=["iX"]<br>   Y=["iY"]<br><pre>"
+      call lineout outfile, 'TestMode='TestMode
+      call lineout outfile, 'NRegions='Region.NRegions
+      call lineout outfile, '<hr>Default = "'_URL'" <br>'
+      call lineout outfile, 'Redirect to URL = "'_URL'"<hr>'
+
+      call lineout outfile, "</body>"
+    end
+  End   /* Select */
+
+call lineout outfile	/* Close the output file */
+return MapName
+
+	/* Read in the .MAP file into a stem variable.  [Region]  */
+ReadMap: procedure expose Region. Default Map. TestMode
+   parse arg ID		/* parse out passed variable. (represents MapID) */
+
+	/* Initilizations */
+   i = 0
+   nR = 0
+   Text = '%'
+   Default = ''
+   TestMode = 0
+
+	/* read in the region definitions from the .MAP file.  */
+   do while (Text \= '')
+     i = i + 1
+     Text = linein(Map.filename.ID)
+     parse var Text T  Region.URL.i  C1 C2
+     parse upper var T Region.Type.i
+
+     Select
+
+	/* If the TESTMODE keyword is present, set TestMode to on.  */
+       When (Region.Type.i = 'TESTMODE') then
+        do
+          i = i - 1
+          TestMode = 1
+        end
+
+	/* DEFAULT keyword sets the default URL to redirect to in case of no region matches. */
+       When (Region.Type.i = 'DEFAULT') then
+         do 
+           Default = Region.URL.i
+           i = i - 1
+         end
+
+	/* Parse out coordinates for the Rectangular region.  */
+       When (Region.Type.i = 'RECT') then
+         do 
+           parse var C1 Region.X1.i ',' Region.Y1.i
+           parse var C2 Region.X2.i ',' Region.Y2.i
+           nR = nR + 1
+
+	/* ensure that X1,Y1 is upper left, and X2,Y2 is lower right... */
+           if (Region.X2.i < Region.X1.i) then 	/* Swap... */
+            do 1
+              a = Region.X2.i
+              Region.X2.i = Region.X1.i
+              Region.X1.i = a
+            end
+           if (Region.Y2.i < Region.Y1.i) then 	/* Swap... */
+            do 1
+              a = Region.Y2.i
+              Region.Y2.i = Region.Y1.i
+              Region.Y1.i = a
+            end
+         end
+
+	/* Parse out coordinates for the Circle region.  */
+       When (Region.Type.i = 'CIRC') then
+         do 
+           parse var C1 Region.X1.i ',' Region.Y1.i
+		/* radius... */
+           Region.X2.i = C2
+           nR = nR + 1
+         end
+
+	/* handle the standard blank line between 'Default' line and other regions... */
+       When (Region.Type.i = '') then
+         do 
+           if ((i = 1) & (Default \= '')) then 
+            do
+              Text = '%'
+              i = i - 1
+            end
+         end
+
+	/* Must be an unknown region type... */
+       Otherwise
+         do 
+           say 'Unknown RegionType=['Region.Type.i']  URL=<'Region.URL.i'>  [C1='C1'  C2='C2']'
+           i = i - 1
+         end
+     End /* Select */     
+   end
+   Region.NRegions = nR
+   return nR
+
+GetURLfromMap: procedure expose Region. Default Map.
+
+	/* Parse out mouse click coordinates */
+   parse arg tX tY
+   i = 1
+   Hit = 0
+
+	/* Set URL to the default, in case no regions are hit... */
+   _URL = Default
+
+	/* Loop through the defined regions to find first hit. */
+   do while ((i <= Region.NRegions) & (Hit = 0))
+     Select
+
+	/* Determine if coordinates lie within the rectangular area.  */
+       When Region.Type.i = 'RECT' then
+        do
+          Hit = ((tX >= Region.X1.i) & (tY >= Region.Y1.i) & (tX <= Region.X2.i) & (tY <= Region.Y2.i))
+        end
+
+	/* Calc distance to coordinates from Circle center, and compare to radius.*/
+	/*   If less than radius, then it's a hit... */
+       When Region.Type.i = 'CIRC' then
+        do
+          a = tX - Region.X1.i
+          b = tY - Region.Y1.i
+          R = (a * a) + (b * b)
+          Hit = (R <= (Region.X2.i * Region.X2.i))
+        end
+
+	/* The required 'Otherwise'... */
+       Otherwise
+        do
+        end
+     End /* Select */
+
+	/* If a hit, then set '_URL' to stem URL value.  */
+     if (Hit = 1) then
+      do
+        _URL = Region.URL.i
+      end
+     i = i + 1
+   end
+   return _URL		/* return the identified URL */
+

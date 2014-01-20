@@ -1,0 +1,63 @@
+/*  This file contains the necessary REXX code to be added to your GoServe's  	*/
+/*  GoFilter.## file, in order to allow the REXX ImageMap handler to be used.	*/
+
+/*    It assumes you are already using a derivative of the "GoFilter.80" crafted  */
+/*    to allow HTTP/0.9 services, distributed via the IBM Almaden Gopher Server.  */
+
+
+/* 1) First, add the following line somewhere in the file's variable initialization area,   */
+/*     Usually near the top of the file:			*/
+
+drive='F:'			/* Data drive */
+TempPath = '/public'		/* path for temp files, must have Read/Write/Create/Delete access */
+
+
+/* 2a) Locate the line in the GoFilter.## file that resembles the following line:  	*/
+
+Parse Upper Value translate(selector,'/','\') With leftpart '/' .
+
+
+/* 2b) Change this line to read:					*/
+
+Parse Upper Value translate(selector,'/','\') With leftpart '/' rightpart .
+
+/* 	Note the addition at the end...  */
+
+
+/* 3a) Immediately below this line in the file, you should see a compound 'SELECT'  */
+/*    statement.
+
+Select
+   When ...
+   When ...
+   Otherwise ...
+End
+
+
+/* 3b) The following code excerpt should be inserted into the 'SELECT' statement	*/
+/*     in the GoFilter.## file your server is using.  	*/
+/*       (Preferably, immediately following 'SELECT'... )	*/
+
+  When leftpart = 'WWW' then 
+    do 1
+      dir = drive||TempPath	/*  Sets drive & path for temporary files returned by ImageMap.##.  */
+      parse var rightpart ID '/' remainder
+      Select
+        When (ID = 'IMAGEMAP') then
+          do 
+            outfile = dir'/'transaction || '.script'
+            Parse var remainder fn '?' Parms
+            Parse var fn ScriptName '$' PathParms
+            Call ImageMap outfile, Parms, ScriptName, PathParms
+            return 'FILE ERASE NAME' outfile
+          end
+        Otherwise		/* The required "Otherwise" statement... */
+			/* Should fall through as a document for GoServe to retrieve. */
+          do
+          end
+      End  /* Select */
+    end
+
+
+
+

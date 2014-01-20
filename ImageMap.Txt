@@ -1,0 +1,49 @@
+Well, they said it couldn't be done.
+
+As of version 1.20 of Mike Cowlishaw's OS/2 gopher server, GoServe, it has been
+enabled to serve up HTML documents to WWW browsers at the HTTP/0.9 level.
+(And it does that very well, I might add...)
+
+Unfortunatly, however, it has appeared that it couldn't support any of the more 
+advanced HTTP/1.0 functionality, such as Active Maps, Forms, etc.  Until now, 
+that is...
+
+This package provides the information & files necessary to graft support for Active 
+Maps, or image maps, onto the GoServe system.
+
+
+Contents of the ImageMap.Zip archive:
+	ImageMap.Txt		This file
+	ImageMap.80		The REXX Script which handles the imagemap function
+	GoFilter.Add		File containing REXX code snippets to graft into
+				GoFilter.## to allow it to recognize ImageMap.##
+	conf\imagemap.cnf	A sample configuration file.
+
+
+The ImageMap script was written to follow and use the same rules as the Unix-based
+HTTPD servers, allowing the same setup file structures to be used.  (The exception is 
+that Unix HTTPD servers use a "conf\imagemap.conf" file -- I made exception for those
+OS/2 users still using FAT filesystems by using the ".cnf" extension.)  The "*.MAP" file
+structure is identical to that employed by Unix HTTPD servers.
+
+A Web-based tutorial on the setup of imagemap services can be found via the 
+URL "http://wintermute.ncsa.uiuc.edu:8080/map-tutorial/image-maps.html"
+
+Note:
+In addition to the standard "rect" region supported by Unix-based imagemap 
+systems, this one also supports the definition of "circ", or circular regions:
+
+circ	<URL to redirect to>	{midpoint X},{midpoint Y}     {Radius}
+
+
+Sometime soon, I hope to get around to putting together an on-line document 
+(WWW, of course) covering the details of the REXX ImageMap system.
+
+Look for it on my personal home-page: 
+"http://gopher.ag.uiuc.edu/DLM/DLM.Html"
+
+
+If you have questions on how to set this up on your server, feel free to 
+contact me via email at 'dlmeyer@uiuc.edu'.
+
+
